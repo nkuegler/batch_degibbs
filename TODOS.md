@@ -1,0 +1,12 @@
+
+- need to print all the filenames ? (both in call and slurm scripts) -> not needed in call script, just how many images were found 
+- mrtrix development version (3D degibbsing? ) -> add mrtrix command (either sc mrtrix 3.0.8 ? or set up dev version in git dir and document how)
+- check for Partial fourier key in json and stop if it is not 1
+- is _$$ unique? -> include this identifier in the degibbs.mif filename
+- should scratch_dir be directly in output dir or rather somewhere outside? 
+- slice encoding: 3rd or 4th dimension? 
+- is the slice encoding direction correct? compare with mrinfo or fslhd
+- mrcat, mrdegibbs, and mrinfo in sc container (is remove_ext also mrtrix? )
+- what about basename? 
+- suffix="_${base##*_}"
+- pass delete flag to script rather than exporting it globally (brittle if multiple jobs are started in the same shell one after another)

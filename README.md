@@ -4,7 +4,7 @@ Batch processing scripts for Gibb's ringing removal (degibbsing) on MRI data usi
 
 Degibbsing is applied collectively per subject/session: all matching image files are concatenated with `mrcat` into a single 4D volume, degibbsed with `mrdegibbs -mode 3d`, and then split back into the individual volumes. 
 
-> [!HINT] 
+> [!NOTE] 
 > Because `mrdegibbs` corrects each slice independently, a single 4D job per subject/session is sufficient (no need for per-contrast or per-part jobs).
 
 ## Important notes on degibbsing
@@ -117,7 +117,8 @@ The filename of each output equals the input, with `_desc-degibbs` inserted dire
 ./call_slurm_batch_degibbs.sh -dep 12345 --d /data/input /data/output
 ```
 
-> [!NOTE] Each job uses its own scratch directory inside the job's output directory
+> [!NOTE] 
+> Each job uses its own scratch directory inside the job's output directory
 > (`scratch_degibbs_<pid>`). Use `--d` / `--delete-scratch` to remove it after the job finishes.
 
 ## Running a job standalone
