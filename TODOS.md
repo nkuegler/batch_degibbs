@@ -1,6 +1,5 @@
 - need to print all the filenames ? (both in call and slurm scripts) -> not needed in call script, just how many images were found 
-- mrtrix development version (3D degibbsing? ) -> add mrtrix command (either sc mrtrix 3.0.8 ? or set up dev version in git dir and document how)
 - slice encoding: 3rd or 4th dimension? 
 - is the slice encoding direction correct? compare with mrinfo or fslhd
-- mrcat, mrdegibbs, and mrinfo in sc container (is remove_ext also mrtrix? )
+-> maybe remove displaying matrix size (only for testing)
 - add synthetic (later real) test data set and write tests in the tests/ directory (see batch_LORAKSreco)

@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # degibbs_slurm.sh: SLURM batch job that concatenates all image files of a
 # subject/session into a single 4D volume, degibbses it, and splits the result
 # back into the individual (3D) volumes, storing them as NIfTI files.
@@ -130,24 +131,30 @@ mkdir -p "$scratch_dir"
 echo ">>> Degibbsing ${#input_files[@]} file(s) together"
 echo ">>> Scratch directory: $scratch_dir"
 
+if [[ "$CONFIG_MRTRIX_NO_DIMENSIONALITY" == "true" ]]; then
+    mrdegibbs_options=()
+else
+    mrdegibbs_options=(-dimensionality "$CONFIG_MRTRIX_DIMENSIONALITY")
+fi
+
 # Concatenate and degibbs all data together
-mrcat "${input_files[@]}" - | mrdegibbs -dimensionality 3 - "$scratch_dir"/degibbs_$$.mif
+${CONFIG_MRTRIX}mrcat "${input_files[@]}" - | ${CONFIG_MRTRIX}mrdegibbs "${mrdegibbs_options[@]}" - "$scratch_dir"/degibbs_$$.mif
 
 # Report the matrix size of the concatenated volume so that the slice-encoding
 # direction (axis 2, i.e. the 3rd dimension) can be verified: the spatial axes
 # (0,1,2) should match the in-plane and slice dimensions of the input images.
-echo ">>> Matrix size of concatenated volume (axis0 axis1 axis2 axis3): $(mrinfo "$scratch_dir"/degibbs_$$.mif -size)"
+echo ">>> Matrix size of concatenated volume (axis0 axis1 axis2 axis3): $(${CONFIG_MRTRIX}mrinfo "$scratch_dir"/degibbs_$$.mif -size)"
 
 idx=0
 for m in "${input_files[@]}"; do
-    noext=$(remove_ext "$m")
+    noext=$(${CONFIG_MRTRIX}remove_ext "$m")
     base=$(basename "$noext")
 
     # Determine number of volumes in the input
-    if [ "$(mrinfo "$m" -ndim)" = 3 ]; then
+    if [ "$(${CONFIG_MRTRIX}mrinfo "$m" -ndim)" = 3 ]; then
         nvol=1
     else
-        nvol=$(mrinfo "$m" -size | cut -f 4 -d" ")
+        nvol=$(${CONFIG_MRTRIX}mrinfo "$m" -size | cut -f 4 -d" ")
     fi
     idx_new=$((idx+nvol))
 
@@ -159,7 +166,7 @@ for m in "${input_files[@]}"; do
     echo "  >>> Splitting out $idx:$((idx_new-1)) -> $output_dir/${fname}.nii"
 
     # write degibbsed data to output folder
-    mrconvert "$scratch_dir"/degibbs_$$.mif -coord 3 ${idx}:$((idx_new-1)) "$output_dir"/"${fname}".nii
+    ${CONFIG_MRTRIX}mrconvert "$scratch_dir"/degibbs_$$.mif -coord 3 ${idx}:$((idx_new-1)) "$output_dir"/"${fname}".nii
 
     # copy json sidecar files if present
     if [ -f "${noext}".json ]; then

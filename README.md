@@ -52,7 +52,7 @@ cmake -DMRTRIX_USE_QT5=true -DCMAKE_INSTALL_PREFIX=<sw_storage>/mrtrix3 ..
 make -j5 install
 ```
 
-The `mrdegibbs` dimensionality is selected with `-dimensionality 2` for 2D slice-wise processing or `-dimensionality 3` for 3D processing.
+The MRtrix command prefix and dimensionality are configured in `config.sh`. By default, the scripts use the compiled development version with `-dimensionality 3`. To use the `sc mrtrix 3.0.8` container instead, set `CONFIG_MRTRIX` to `sc mrtrix 3.0.8 ` and set `CONFIG_MRTRIX_NO_DIMENSIONALITY=true` (the dimensionality value is ignored when the no-dimensionality flag is enabled).
 
 Optionally edit `config.sh` to change the location of the SLURM log directory
 (`CONFIG_DEGIBBS_SLURM_LOG_DIR`) and the repository root (`CONFIG_REPO_DIR`).
@@ -88,7 +88,7 @@ For every `sub-*/ses-*/anat` directory, **one job** is submitted. Each job:
 
 1. Collects all image files in that anat directory whose stem contains at least one of the contrast strings given via `-c` (default `PDw,T1w,MTw`) and, if given, matches the pattern from `-p`.
 2. Concatenates them into a single 4D volume (`mrcat`).
-3. Degibbses the 4D volume (`mrdegibbs -dimensionality 3`).
+3. Degibbses the 4D volume with the configured MRtrix3 version. The development version uses `mrdegibbs -dimensionality 3` or `mrdegibbs -dimensionality 2` (see `CONFIG_MRTRIX_NO_DIMENSIONALITY`); the `sc mrtrix 3.0.8` container uses its default 2D slice-wise mode.
 4. Splits it back into the individual volumes and writes them as NIfTI.
 
 Results are written into an output directory that mirrors the BIDS hierarchy:
