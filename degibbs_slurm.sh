@@ -7,7 +7,7 @@
 # also be run directly (see USAGE below).
 #
 # USAGE (arguments passed to the SLURM job):
-#   degibbs_slurm.sh <output_dir> <file1> <file2> ... <fileN>
+#   degibbs_slurm.sh [-pw|--preserve-workdir] <output_dir> <file1> <file2> ... <fileN>
 #
 # ARGUMENTS:
 #   output_dir: directory where the degibbsed files are written (BIDS sub/ses/anat)
@@ -17,6 +17,7 @@
 #   Each output NIfTI has the same stem as its input, with "_desc-degibbs"
 #   inserted directly before the suffix (mostly "_MPM") and the ".nii" extension.
 #   Corresponding JSON sidecars are copied over when present.
+#   Scratch directories are removed by default; use --preserve-workdir to keep them.
 #
 # REQUIRES:
 #   - MRtrix3 utilities to be on the PATH
@@ -27,6 +28,10 @@
 # 	Luke J. Edwards (ledwards@cbs.mpg.de)
 #   Adapted for SLURM batch processing by Niklas Kuegler (kuegler@cbs.mpg.de)
 
+usage() {
+    echo "Usage: $(basename "$0") [-h|--help] [-pw|--preserve-workdir] <output_dir> <file1> <file2> ... <fileN>"
+}
+
 #
 #SBATCH -c 4                          # 4 cores
 #SBATCH --mem 16G                     # estimated 16G RAM
@@ -35,6 +40,35 @@
 ## logfile output specified in call_slurm_batch_degibbs.sh
 
 set -e
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$repo_root/config.sh"
+
+preserve_workdir=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -pw|--preserve-workdir)
+            preserve_workdir=true
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "Error: Unknown option $1"
+            usage
+            exit 1
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 output_dir="$1"
 shift
@@ -50,7 +84,7 @@ echo "--------------------------------"
 
 if [[ -z "$output_dir" || ${#input_files[@]} -eq 0 ]]; then
     echo "Error: Not enough arguments supplied."
-    echo "Usage: degibbs_slurm.sh <output_dir> <file1> <file2> ..."
+    usage
     exit 1
 fi
 
@@ -112,12 +146,12 @@ for m in "${input_files[@]}"; do
     idx=${idx_new}
 done
 
-# Remove the scratch directory if requested (via --d / --delete-scratch flag)
-if [[ "${DELETE_SCRATCH:-false}" == "true" ]]; then
+# Remove the scratch directory by default; preserve it only when requested.
+if [[ "$preserve_workdir" == "true" ]]; then
+    echo ">>> Scratch directory preserved: $scratch_dir"
+else
     echo ">>> Removing scratch directory: $scratch_dir"
     rm -rf "$scratch_dir"
-else
-    echo ">>> Scratch directory preserved: $scratch_dir"
 fi
 
 echo "Processing complete."

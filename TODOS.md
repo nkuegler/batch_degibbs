@@ -7,6 +7,5 @@
 - slice encoding: 3rd or 4th dimension? 
 - is the slice encoding direction correct? compare with mrinfo or fslhd
 - mrcat, mrdegibbs, and mrinfo in sc container (is remove_ext also mrtrix? )
-- what about basename? 
 - suffix="_${base##*_}"
-- pass delete flag to script rather than exporting it globally (brittle if multiple jobs are started in the same shell one after another)
+- add synthetic (later real) test data set and write tests in the tests/ directory (see batch_LORAKSreco)

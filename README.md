@@ -92,7 +92,7 @@ The filename of each output equals the input, with `_desc-degibbs` inserted dire
 | `-dep JOBID`, `--dependency JOBID` | Submit all jobs with dependency on successful completion of `JOBID` |
 | `-job-name JOBNAME` | Custom job name for the submitted job (single-job submissions only) |
 | `-log DIR`, `--logfiledir DIR` | Custom SLURM log output directory (include trailing slash) |
-| `--d`, `--delete-scratch` | Delete per-job scratch directories after processing |
+| `-pw`, `--preserve-workdir` | Preserve per-job scratch directories after processing (deleted by default) |
 | `--dry-run` | Show commands that would be submitted without actually submitting jobs |
 
 ### Examples
@@ -113,13 +113,14 @@ The filename of each output equals the input, with `_desc-degibbs` inserted dire
 # Dry run to preview the jobs that would be submitted
 ./call_slurm_batch_degibbs.sh --dry-run /data/input /data/output
 
-# Wait for another job before starting, and delete scratch directories afterwards
-./call_slurm_batch_degibbs.sh -dep 12345 --d /data/input /data/output
+# Wait for another job before starting, while preserving scratch directories
+./call_slurm_batch_degibbs.sh -dep 12345 --preserve-workdir /data/input /data/output
 ```
 
-> [!NOTE] 
+> [!NOTE]
 > Each job uses its own scratch directory inside the job's output directory
-> (`scratch_degibbs_<pid>`). Use `--d` / `--delete-scratch` to remove it after the job finishes.
+> (`scratch_degibbs_<pid>`). Scratch directories are removed after successful
+> processing unless `--preserve-workdir` is used.
 
 ## Running a job standalone
 
@@ -134,7 +135,8 @@ The SLURM job itself (`degibbs_slurm.sh`) can also be run directly:
     /data/sub-001/ses-01/anat/*_part-phase_MPM.nii
 ```
 
-Set the environment variable `DELETE_SCRATCH=true` to remove the scratch directory after processing.
+Use `--preserve-workdir` to keep the scratch directory after processing; it is
+removed by default.
 
 ## Output
 
