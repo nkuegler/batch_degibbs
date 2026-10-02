@@ -1,4 +1,5 @@
 #!/bin/bash
+
 # degibbs_slurm.sh: SLURM batch job that concatenates all image files of a
 # subject/session into a single 4D volume, degibbses it, and splits the result
 # back into the individual (3D) volumes, storing them as NIfTI files.
@@ -7,7 +8,7 @@
 # also be run directly (see USAGE below).
 #
 # USAGE (arguments passed to the SLURM job):
-#   degibbs_slurm.sh <output_dir> <file1> <file2> ... <fileN>
+#   degibbs_slurm.sh [--config <config_file>] [-pw|--preserve-workdir] <output_dir> <file1> <file2> ... <fileN>
 #
 # ARGUMENTS:
 #   output_dir: directory where the degibbsed files are written (BIDS sub/ses/anat)
@@ -17,6 +18,7 @@
 #   Each output NIfTI has the same stem as its input, with "_desc-degibbs"
 #   inserted directly before the suffix (mostly "_MPM") and the ".nii" extension.
 #   Corresponding JSON sidecars are copied over when present.
+#   Scratch directories are removed by default; use --preserve-workdir to keep them.
 #
 # REQUIRES:
 #   - MRtrix3 utilities to be on the PATH
@@ -32,9 +34,58 @@
 #SBATCH --mem 16G                     # estimated 16G RAM
 #SBATCH --time 120                    # estimated 120 minutes maximum
 #
-## logfile output specified in call_slurm_batch_degibbs.sh
+## logfile output specified in call_slurm_batch_degibbs.sh. Pass this manually if you want to run this script directly.
+
+usage() {
+    echo "Usage: $(basename "$0") [-h|--help] [--config <config_file>] [-pw|--preserve-workdir] <output_dir> <file1> <file2> ... <fileN>"
+}
 
 set -e
+
+# default config. Will not work when this script is submitted via SLURM, but will work when run directly
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+config_file="$repo_root/config.sh"
+
+preserve_workdir=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        -C|--config)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --config requires a file path"
+                usage
+                exit 1
+            fi
+            config_file="$2"
+            shift 2
+            ;;
+        -pw|--preserve-workdir)
+            preserve_workdir=true
+            shift
+            ;;
+        --)
+            shift
+            break
+            ;;
+        -*)
+            echo "Error: Unknown option $1"
+            usage
+            exit 1
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
+
+if [[ ! -f "$config_file" ]]; then
+    echo "Error: Configuration file does not exist: $config_file"
+    exit 1
+fi
+source "$config_file"
 
 output_dir="$1"
 shift
@@ -50,7 +101,7 @@ echo "--------------------------------"
 
 if [[ -z "$output_dir" || ${#input_files[@]} -eq 0 ]]; then
     echo "Error: Not enough arguments supplied."
-    echo "Usage: degibbs_slurm.sh <output_dir> <file1> <file2> ..."
+    usage
     exit 1
 fi
 
@@ -59,6 +110,30 @@ for f in "${input_files[@]}"; do
         echo "Error: Input file does not exist: $f"
         exit 1
     fi
+done
+
+for f in "${input_files[@]}"; do
+    json_file="${f%.nii.gz}"
+    json_file="${json_file%.nii}.json"
+    if [[ ! -f "$json_file" ]]; then
+        echo "WARNING: No JSON sidecar found for $f; PartialFourier could not be checked. Executing degibbs anyway."
+        continue
+    fi
+
+    partial_fourier_status=$(check_partial_fourier "$json_file")
+
+    case "$partial_fourier_status" in
+        invalid)
+            echo "ERROR: PartialFourier is not 1 in $json_file; refusing to degibbs."
+            exit 1
+            ;;
+        missing)
+            echo "WARNING: PartialFourier is not present in $json_file. Executing degibbs anyway."
+            ;;
+        unreadable)
+            echo "WARNING: Could not parse JSON in $json_file; PartialFourier could not be checked. Executing degibbs anyway."
+            ;;
+    esac
 done
 
 # Create the output directory (BIDS sub/ses/anat is already part of output_dir)
@@ -72,24 +147,31 @@ mkdir -p "$scratch_dir"
 echo ">>> Degibbsing ${#input_files[@]} file(s) together"
 echo ">>> Scratch directory: $scratch_dir"
 
+if [[ "$CONFIG_MRTRIX_NO_DIMENSIONALITY" == "true" ]]; then
+    mrdegibbs_options=()
+else
+    mrdegibbs_options=(-dimensionality "$CONFIG_MRTRIX_DIMENSIONALITY")
+fi
+
 # Concatenate and degibbs all data together
-mrcat "${input_files[@]}" - | mrdegibbs -mode 3d - "$scratch_dir"/degibbs.mif
+${CONFIG_MRTRIX}mrcat "${input_files[@]}" - | ${CONFIG_MRTRIX}mrdegibbs "${mrdegibbs_options[@]}" - "$scratch_dir"/degibbs_$$.mif
 
 # Report the matrix size of the concatenated volume so that the slice-encoding
 # direction (axis 2, i.e. the 3rd dimension) can be verified: the spatial axes
 # (0,1,2) should match the in-plane and slice dimensions of the input images.
-echo ">>> Matrix size of concatenated volume (axis0 axis1 axis2 axis3): $(mrinfo "$scratch_dir"/degibbs.mif -size)"
+echo ">>> Matrix size of concatenated volume (axis0 axis1 axis2 axis3): $(${CONFIG_MRTRIX}mrinfo "$scratch_dir"/degibbs_$$.mif -size)"
 
 idx=0
 for m in "${input_files[@]}"; do
-    noext=$(remove_ext "$m")
+    noext="${m%.nii.gz}"
+    noext="${noext%.nii}"
     base=$(basename "$noext")
 
     # Determine number of volumes in the input
-    if [ "$(mrinfo "$m" -ndim)" = 3 ]; then
+    if [ "$(${CONFIG_MRTRIX}mrinfo "$m" -ndim)" = 3 ]; then
         nvol=1
     else
-        nvol=$(mrinfo "$m" -size | cut -f 4 -d" ")
+        nvol=$(${CONFIG_MRTRIX}mrinfo "$m" -size | cut -f 4 -d" ")
     fi
     idx_new=$((idx+nvol))
 
@@ -101,7 +183,7 @@ for m in "${input_files[@]}"; do
     echo "  >>> Splitting out $idx:$((idx_new-1)) -> $output_dir/${fname}.nii"
 
     # write degibbsed data to output folder
-    mrconvert "$scratch_dir"/degibbs.mif -coord 3 ${idx}:$((idx_new-1)) "$output_dir"/"${fname}".nii
+    ${CONFIG_MRTRIX}mrconvert "$scratch_dir"/degibbs_$$.mif -coord 3 ${idx}:$((idx_new-1)) "$output_dir"/"${fname}".nii
 
     # copy json sidecar files if present
     if [ -f "${noext}".json ]; then
@@ -112,12 +194,12 @@ for m in "${input_files[@]}"; do
     idx=${idx_new}
 done
 
-# Remove the scratch directory if requested (via --d / --delete-scratch flag)
-if [[ "${DELETE_SCRATCH:-false}" == "true" ]]; then
+# Remove the scratch directory by default; preserve it only when requested.
+if [[ "$preserve_workdir" == "true" ]]; then
+    echo ">>> Scratch directory preserved: $scratch_dir"
+else
     echo ">>> Removing scratch directory: $scratch_dir"
     rm -rf "$scratch_dir"
-else
-    echo ">>> Scratch directory preserved: $scratch_dir"
 fi
 
 echo "Processing complete."

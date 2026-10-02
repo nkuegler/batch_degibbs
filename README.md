@@ -2,7 +2,7 @@
 
 Batch processing scripts for Gibb's ringing removal (degibbsing) on MRI data using SLURM clusters.
 
-Degibbsing is applied collectively per subject/session: all matching image files are concatenated with `mrcat` into a single 4D volume, degibbsed with `mrdegibbs -mode 3d`, and then split back into the individual volumes. 
+Degibbsing is applied collectively per subject/session: all matching image files are concatenated with `mrcat` into a single 4D volume, degibbsed with `mrdegibbs -dimensionality 3`, and then split back into the individual volumes.
 
 > [!NOTE] 
 > Because `mrdegibbs` corrects each slice independently, a single 4D job per subject/session is sufficient (no need for per-contrast or per-part jobs).
@@ -18,7 +18,7 @@ Hints from the `mrdegibbs` documentation:
 
 In the processing pipeline, degibbsing should be applied **before** gradient nonlinearity correction (GNLC) — "directly after it has been reconstructed by the scanner, before any interpolation of any kind has taken place". Note that the scanner itself may include gradient nonlinearity correction. "For best results, any form of filtering performed by the scanner should be disabled, whether performed in the image domain or k-space".
 
-Degibbsing operates **per slice**: `mrdegibbs` corrects each slice independently (the development branch of MRtrix3 contains a dedicated `-mode 3d` version, which is used by these scripts). Because the correction is applied slice-by-slice, it is sufficient to concatenate all volumes of a subject/session into a single 4D volume and degibbs them together.
+Degibbsing operates **per slice**: `mrdegibbs` corrects each slice independently (the development branch of MRtrix3 contains a dedicated `-dimensionality 3` version, which is used by these scripts). Because the correction is applied slice-by-slice, it is sufficient to concatenate all volumes of a subject/session into a single 4D volume and degibbs them together.
 
 ## Files
 
@@ -30,9 +30,29 @@ Degibbsing operates **per slice**: `mrdegibbs` corrects each slice independently
 
 ## Installation / Requirements
 
-- MRtrix3 utilities on the `PATH` (`mrcat`, `mrdegibbs`, `mrinfo`, `mrconvert`, `remove_ext`)
+- MRtrix3 utilities on the `PATH` (`mrcat`, `mrdegibbs`, `mrinfo`, `mrconvert`)
 - FSL utilities on the `PATH`
+- `jq` on the `PATH` (used to validate `PartialFourier` in JSON sidecars)
 - SLURM scheduler (`sbatch`)
+
+### MRtrix3 version
+
+The `mrtrix 3.0.8` container is installed and can be run with `sc mrtrix 3.0.8`. It supports 2D, slice-wise degibbsing, but it does not provide the 3D functionality used by this batch workflow.
+
+The MRtrix3 development version supports both 2D and 3D degibbsing. It must be compiled locally before it can be used. On the relevant system, build it as follows:
+
+```bash
+ssh mulde # only works on mulde!!!
+git clone https://github.com/MRtrix3/mrtrix3.git
+cd mrtrix3
+git checkout dev
+mkdir release
+cd release
+cmake -DMRTRIX_USE_QT5=true -DCMAKE_INSTALL_PREFIX=<sw_storage>/mrtrix3 ..
+make -j5 install
+```
+
+The MRtrix command prefix and dimensionality are configured in `config.sh`. By default, the scripts use the compiled development version with `-dimensionality 3`. To use the `sc mrtrix 3.0.8` container instead, set `CONFIG_MRTRIX` to `sc mrtrix 3.0.8 ` and set `CONFIG_MRTRIX_NO_DIMENSIONALITY=true` (the dimensionality value is ignored when the no-dimensionality flag is enabled).
 
 Optionally edit `config.sh` to change the location of the SLURM log directory
 (`CONFIG_DEGIBBS_SLURM_LOG_DIR`) and the repository root (`CONFIG_REPO_DIR`).
@@ -68,7 +88,7 @@ For every `sub-*/ses-*/anat` directory, **one job** is submitted. Each job:
 
 1. Collects all image files in that anat directory whose stem contains at least one of the contrast strings given via `-c` (default `PDw,T1w,MTw`) and, if given, matches the pattern from `-p`.
 2. Concatenates them into a single 4D volume (`mrcat`).
-3. Degibbses the 4D volume (`mrdegibbs -mode 3d`).
+3. Degibbses the 4D volume with the configured MRtrix3 version. The development version uses `mrdegibbs -dimensionality 3` or `mrdegibbs -dimensionality 2` (see `CONFIG_MRTRIX_NO_DIMENSIONALITY`); the `sc mrtrix 3.0.8` container uses its default 2D slice-wise mode.
 4. Splits it back into the individual volumes and writes them as NIfTI.
 
 Results are written into an output directory that mirrors the BIDS hierarchy:
@@ -92,7 +112,7 @@ The filename of each output equals the input, with `_desc-degibbs` inserted dire
 | `-dep JOBID`, `--dependency JOBID` | Submit all jobs with dependency on successful completion of `JOBID` |
 | `-job-name JOBNAME` | Custom job name for the submitted job (single-job submissions only) |
 | `-log DIR`, `--logfiledir DIR` | Custom SLURM log output directory (include trailing slash) |
-| `--d`, `--delete-scratch` | Delete per-job scratch directories after processing |
+| `-pw`, `--preserve-workdir` | Preserve per-job scratch directories after processing (deleted by default) |
 | `--dry-run` | Show commands that would be submitted without actually submitting jobs |
 
 ### Examples
@@ -113,20 +133,21 @@ The filename of each output equals the input, with `_desc-degibbs` inserted dire
 # Dry run to preview the jobs that would be submitted
 ./call_slurm_batch_degibbs.sh --dry-run /data/input /data/output
 
-# Wait for another job before starting, and delete scratch directories afterwards
-./call_slurm_batch_degibbs.sh -dep 12345 --d /data/input /data/output
+# Wait for another job before starting, while preserving scratch directories
+./call_slurm_batch_degibbs.sh -dep 12345 --preserve-workdir /data/input /data/output
 ```
 
-> [!NOTE] 
+> [!NOTE]
 > Each job uses its own scratch directory inside the job's output directory
-> (`scratch_degibbs_<pid>`). Use `--d` / `--delete-scratch` to remove it after the job finishes.
+> (`scratch_degibbs_<pid>`). Scratch directories are removed after successful
+> processing unless `--preserve-workdir` is used.
 
 ## Running a job standalone
 
 The SLURM job itself (`degibbs_slurm.sh`) can also be run directly:
 
 ```bash
-./degibbs_slurm.sh <output_dir> <file1> <file2> ... <fileN>
+./degibbs_slurm.sh [--config <config_file>] <output_dir> <file1> <file2> ... <fileN>
 
 # Example
 ./degibbs_slurm.sh /data/output/sub-001/ses-01/anat \
@@ -134,7 +155,17 @@ The SLURM job itself (`degibbs_slurm.sh`) can also be run directly:
     /data/sub-001/ses-01/anat/*_part-phase_MPM.nii
 ```
 
-Set the environment variable `DELETE_SCRATCH=true` to remove the scratch directory after processing.
+When run directly from the repository, `config.sh` is used by default. Use
+`--config` to provide an explicit configuration file, for example:
+
+```bash
+./degibbs_slurm.sh --config /path/to/config.sh \
+    /data/output/sub-001/ses-01/anat \
+    /data/sub-001/ses-01/anat/*_part-mag_MPM.nii
+```
+
+Use `--preserve-workdir` to keep the scratch directory after processing; it is
+removed by default.
 
 ## Output
 

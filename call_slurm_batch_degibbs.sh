@@ -24,7 +24,7 @@ OPTIONS:
     -dep JOBID | --dependency JOBID: submit all jobs with dependency on successful completion of the specified job ID
     -job-name JOBNAME: specify a custom job name for the submitted job (only valid when submitting a single job)
     -log LOGFILEDIR | --logfiledir LOGFILEDIR: specify a custom log directory for SLURM job output (make sure to include a trailing slash, e.g., /path/to/logs/)
-    --d | --delete-scratch: delete scratch directories after processing
+    -pw | --preserve-workdir: preserve scratch directories after processing
     --dry-run: show commands that would be executed without actually submitting jobs
 
 
@@ -74,7 +74,7 @@ contrasts="PDw,T1w,MTw"
 pattern="*_MPM"
 delay=1
 dry_run=false
-delete_scratch=false
+preserve_workdir=false
 parent_dir=""
 output_dir=""
 subjects=""
@@ -110,8 +110,8 @@ while [[ $# -gt 0 ]]; do
             sessions="$2"
             shift 2
             ;;
-        --d|--delete-scratch)
-            delete_scratch=true
+        -pw|--preserve-workdir)
+            preserve_workdir=true
             shift
             ;;
         -dep|--dependency)
@@ -275,7 +275,7 @@ fi
 echo "Found ${#anat_dirs[@]} anat directories to process"
 echo "Contrasts (file filter): ${contrast_array[*]}"
 echo "Pattern: ${pattern}"
-echo "Scratch cleanup: $(if [[ "$delete_scratch" == "true" ]]; then echo "ENABLED"; else echo "DISABLED"; fi)"
+echo "Scratch cleanup: $(if [[ "$preserve_workdir" == "true" ]]; then echo "DISABLED"; else echo "ENABLED"; fi)"
 if [[ -n "$dependency_job_id" ]]; then
     echo "Global job dependency: $dependency_job_id"
 fi
@@ -359,10 +359,35 @@ for anat_path in "${anat_dirs[@]}"; do
             continue
         fi
 
-        echo "  Found ${#matching_files[@]} matching files:"
+        echo "  Found ${#matching_files[@]} matching files"
+
+        partial_fourier_status=0
         for f in "${matching_files[@]}"; do
-            echo "    - $(basename "$f")"
+            json_file="${f%.nii.gz}"
+            json_file="${json_file%.nii}.json"
+            if [[ ! -f "$json_file" ]]; then
+                echo "  WARNING: No JSON sidecar found for $(basename "$f"); PartialFourier could not be checked. Executing degibbs anyway."
+                continue
+            fi
+
+            partial_fourier_result=$(check_partial_fourier "$json_file")
+
+            case "$partial_fourier_result" in
+                invalid)
+                    echo "  ERROR: PartialFourier is not 1 in $json_file; refusing to submit job."
+                    partial_fourier_status=1
+                    ;;
+                missing)
+                    echo "  WARNING: PartialFourier is not present in $json_file. Executing degibbs anyway."
+                    ;;
+                unreadable)
+                    echo "  WARNING: Could not parse JSON in $json_file; PartialFourier could not be checked. Executing degibbs anyway."
+                    ;;
+            esac
         done
+        if [[ "$partial_fourier_status" -ne 0 ]]; then
+            exit 1
+        fi
 
         # Check if output files already exist for this subject/session
         existing_output=$(find "$target_output_dir" -maxdepth 1 -type f -name "*desc-degibbs*" 2>/dev/null | wc -l)
@@ -393,11 +418,13 @@ for anat_path in "${anat_dirs[@]}"; do
         fi
 
         # The script and its positional arguments (output_dir + the list of files)
-        sbatch_args+=("$slurm_script" "$target_output_dir" "${matching_files[@]}")
+        sbatch_args+=("$slurm_script" --config "$repo_root/config.sh")
+        if [[ "$preserve_workdir" == "true" ]]; then
+            sbatch_args+=(--preserve-workdir)
+        fi
+        sbatch_args+=("$target_output_dir" "${matching_files[@]}")
 
         if [[ "$dry_run" == "false" ]]; then
-            # Export the scratch-cleanup flag for the job to pick up
-            export DELETE_SCRATCH="$delete_scratch"
             out=$(sbatch "${sbatch_args[@]}")
             echo "  $out"
 
@@ -415,7 +442,7 @@ for anat_path in "${anat_dirs[@]}"; do
         else
             echo "  DRY RUN: Would submit job (with $(basename "$slurm_script")):"
             echo "    sbatch ${sbatch_args[*]}"
-            echo "  DRY RUN: DELETE_SCRATCH=$delete_scratch"
+            echo "  DRY RUN: preserve workdir=$preserve_workdir"
         fi
 
         ((job_counter++))
