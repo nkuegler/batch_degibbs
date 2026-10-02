@@ -418,10 +418,9 @@ for anat_path in "${anat_dirs[@]}"; do
         fi
 
         # The script and its positional arguments (output_dir + the list of files)
+        sbatch_args+=("$slurm_script" --config "$repo_root/config.sh")
         if [[ "$preserve_workdir" == "true" ]]; then
-            sbatch_args+=("$slurm_script" --preserve-workdir)
-        else
-            sbatch_args+=("$slurm_script")
+            sbatch_args+=(--preserve-workdir)
         fi
         sbatch_args+=("$target_output_dir" "${matching_files[@]}")
 

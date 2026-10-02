@@ -8,7 +8,7 @@
 # also be run directly (see USAGE below).
 #
 # USAGE (arguments passed to the SLURM job):
-#   degibbs_slurm.sh [-pw|--preserve-workdir] <output_dir> <file1> <file2> ... <fileN>
+#   degibbs_slurm.sh [--config <config_file>] [-pw|--preserve-workdir] <output_dir> <file1> <file2> ... <fileN>
 #
 # ARGUMENTS:
 #   output_dir: directory where the degibbsed files are written (BIDS sub/ses/anat)
@@ -29,21 +29,22 @@
 # 	Luke J. Edwards (ledwards@cbs.mpg.de)
 #   Adapted for SLURM batch processing by Niklas Kuegler (kuegler@cbs.mpg.de)
 
-usage() {
-    echo "Usage: $(basename "$0") [-h|--help] [-pw|--preserve-workdir] <output_dir> <file1> <file2> ... <fileN>"
-}
-
 #
 #SBATCH -c 4                          # 4 cores
 #SBATCH --mem 16G                     # estimated 16G RAM
 #SBATCH --time 120                    # estimated 120 minutes maximum
 #
-## logfile output specified in call_slurm_batch_degibbs.sh
+## logfile output specified in call_slurm_batch_degibbs.sh. Pass this manually if you want to run this script directly.
+
+usage() {
+    echo "Usage: $(basename "$0") [-h|--help] [--config <config_file>] [-pw|--preserve-workdir] <output_dir> <file1> <file2> ... <fileN>"
+}
 
 set -e
 
+# default config. Will not work when this script is submitted via SLURM, but will work when run directly
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$repo_root/config.sh"
+config_file="$repo_root/config.sh"
 
 preserve_workdir=false
 while [[ $# -gt 0 ]]; do
@@ -51,6 +52,15 @@ while [[ $# -gt 0 ]]; do
         -h|--help)
             usage
             exit 0
+            ;;
+        -C|--config)
+            if [[ $# -lt 2 ]]; then
+                echo "Error: --config requires a file path"
+                usage
+                exit 1
+            fi
+            config_file="$2"
+            shift 2
             ;;
         -pw|--preserve-workdir)
             preserve_workdir=true
@@ -70,6 +80,12 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+if [[ ! -f "$config_file" ]]; then
+    echo "Error: Configuration file does not exist: $config_file"
+    exit 1
+fi
+source "$config_file"
 
 output_dir="$1"
 shift

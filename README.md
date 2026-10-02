@@ -147,12 +147,21 @@ The filename of each output equals the input, with `_desc-degibbs` inserted dire
 The SLURM job itself (`degibbs_slurm.sh`) can also be run directly:
 
 ```bash
-./degibbs_slurm.sh <output_dir> <file1> <file2> ... <fileN>
+./degibbs_slurm.sh [--config <config_file>] <output_dir> <file1> <file2> ... <fileN>
 
 # Example
 ./degibbs_slurm.sh /data/output/sub-001/ses-01/anat \
     /data/sub-001/ses-01/anat/*_part-mag_MPM.nii \
     /data/sub-001/ses-01/anat/*_part-phase_MPM.nii
+```
+
+When run directly from the repository, `config.sh` is used by default. Use
+`--config` to provide an explicit configuration file, for example:
+
+```bash
+./degibbs_slurm.sh --config /path/to/config.sh \
+    /data/output/sub-001/ses-01/anat \
+    /data/sub-001/ses-01/anat/*_part-mag_MPM.nii
 ```
 
 Use `--preserve-workdir` to keep the scratch directory after processing; it is
