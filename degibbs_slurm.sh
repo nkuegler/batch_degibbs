@@ -163,7 +163,8 @@ echo ">>> Matrix size of concatenated volume (axis0 axis1 axis2 axis3): $(${CONF
 
 idx=0
 for m in "${input_files[@]}"; do
-    noext=$(${CONFIG_MRTRIX}remove_ext "$m")
+    noext="${m%.nii.gz}"
+    noext="${noext%.nii}"
     base=$(basename "$noext")
 
     # Determine number of volumes in the input

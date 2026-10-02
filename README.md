@@ -30,7 +30,7 @@ Degibbsing operates **per slice**: `mrdegibbs` corrects each slice independently
 
 ## Installation / Requirements
 
-- MRtrix3 utilities on the `PATH` (`mrcat`, `mrdegibbs`, `mrinfo`, `mrconvert`, `remove_ext`)
+- MRtrix3 utilities on the `PATH` (`mrcat`, `mrdegibbs`, `mrinfo`, `mrconvert`)
 - FSL utilities on the `PATH`
 - `jq` on the `PATH` (used to validate `PartialFourier` in JSON sidecars)
 - SLURM scheduler (`sbatch`)
