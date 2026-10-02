@@ -131,12 +131,12 @@ echo ">>> Degibbsing ${#input_files[@]} file(s) together"
 echo ">>> Scratch directory: $scratch_dir"
 
 # Concatenate and degibbs all data together
-mrcat "${input_files[@]}" - | mrdegibbs -mode 3d - "$scratch_dir"/degibbs.mif
+mrcat "${input_files[@]}" - | mrdegibbs -mode 3d - "$scratch_dir"/degibbs_$$.mif
 
 # Report the matrix size of the concatenated volume so that the slice-encoding
 # direction (axis 2, i.e. the 3rd dimension) can be verified: the spatial axes
 # (0,1,2) should match the in-plane and slice dimensions of the input images.
-echo ">>> Matrix size of concatenated volume (axis0 axis1 axis2 axis3): $(mrinfo "$scratch_dir"/degibbs.mif -size)"
+echo ">>> Matrix size of concatenated volume (axis0 axis1 axis2 axis3): $(mrinfo "$scratch_dir"/degibbs_$$.mif -size)"
 
 idx=0
 for m in "${input_files[@]}"; do
@@ -159,7 +159,7 @@ for m in "${input_files[@]}"; do
     echo "  >>> Splitting out $idx:$((idx_new-1)) -> $output_dir/${fname}.nii"
 
     # write degibbsed data to output folder
-    mrconvert "$scratch_dir"/degibbs.mif -coord 3 ${idx}:$((idx_new-1)) "$output_dir"/"${fname}".nii
+    mrconvert "$scratch_dir"/degibbs_$$.mif -coord 3 ${idx}:$((idx_new-1)) "$output_dir"/"${fname}".nii
 
     # copy json sidecar files if present
     if [ -f "${noext}".json ]; then
