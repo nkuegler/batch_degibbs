@@ -2,7 +2,7 @@
 
 Batch processing scripts for Gibb's ringing removal (degibbsing) on MRI data using SLURM clusters.
 
-Degibbsing is applied collectively per subject/session: all matching image files are concatenated with `mrcat` into a single 4D volume, degibbsed with `mrdegibbs -mode 3d`, and then split back into the individual volumes. 
+Degibbsing is applied collectively per subject/session: all matching image files are concatenated with `mrcat` into a single 4D volume, degibbsed with `mrdegibbs -dimensionality 3`, and then split back into the individual volumes.
 
 > [!NOTE] 
 > Because `mrdegibbs` corrects each slice independently, a single 4D job per subject/session is sufficient (no need for per-contrast or per-part jobs).
@@ -18,7 +18,7 @@ Hints from the `mrdegibbs` documentation:
 
 In the processing pipeline, degibbsing should be applied **before** gradient nonlinearity correction (GNLC) — "directly after it has been reconstructed by the scanner, before any interpolation of any kind has taken place". Note that the scanner itself may include gradient nonlinearity correction. "For best results, any form of filtering performed by the scanner should be disabled, whether performed in the image domain or k-space".
 
-Degibbsing operates **per slice**: `mrdegibbs` corrects each slice independently (the development branch of MRtrix3 contains a dedicated `-mode 3d` version, which is used by these scripts). Because the correction is applied slice-by-slice, it is sufficient to concatenate all volumes of a subject/session into a single 4D volume and degibbs them together.
+Degibbsing operates **per slice**: `mrdegibbs` corrects each slice independently (the development branch of MRtrix3 contains a dedicated `-dimensionality 3` version, which is used by these scripts). Because the correction is applied slice-by-slice, it is sufficient to concatenate all volumes of a subject/session into a single 4D volume and degibbs them together.
 
 ## Files
 
@@ -34,6 +34,25 @@ Degibbsing operates **per slice**: `mrdegibbs` corrects each slice independently
 - FSL utilities on the `PATH`
 - `jq` on the `PATH` (used to validate `PartialFourier` in JSON sidecars)
 - SLURM scheduler (`sbatch`)
+
+### MRtrix3 version
+
+The `mrtrix 3.0.8` container is installed and can be run with `sc mrtrix 3.0.8`. It supports 2D, slice-wise degibbsing, but it does not provide the 3D functionality used by this batch workflow.
+
+The MRtrix3 development version supports both 2D and 3D degibbsing. It must be compiled locally before it can be used. On the relevant system, build it as follows:
+
+```bash
+ssh mulde # only works on mulde!!!
+git clone https://github.com/MRtrix3/mrtrix3.git
+cd mrtrix3
+git checkout dev
+mkdir release
+cd release
+cmake -DMRTRIX_USE_QT5=true -DCMAKE_INSTALL_PREFIX=<sw_storage>/mrtrix3 ..
+make -j5 install
+```
+
+The `mrdegibbs` dimensionality is selected with `-dimensionality 2` for 2D slice-wise processing or `-dimensionality 3` for 3D processing.
 
 Optionally edit `config.sh` to change the location of the SLURM log directory
 (`CONFIG_DEGIBBS_SLURM_LOG_DIR`) and the repository root (`CONFIG_REPO_DIR`).
@@ -69,7 +88,7 @@ For every `sub-*/ses-*/anat` directory, **one job** is submitted. Each job:
 
 1. Collects all image files in that anat directory whose stem contains at least one of the contrast strings given via `-c` (default `PDw,T1w,MTw`) and, if given, matches the pattern from `-p`.
 2. Concatenates them into a single 4D volume (`mrcat`).
-3. Degibbses the 4D volume (`mrdegibbs -mode 3d`).
+3. Degibbses the 4D volume (`mrdegibbs -dimensionality 3`).
 4. Splits it back into the individual volumes and writes them as NIfTI.
 
 Results are written into an output directory that mirrors the BIDS hierarchy:

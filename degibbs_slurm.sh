@@ -131,7 +131,7 @@ echo ">>> Degibbsing ${#input_files[@]} file(s) together"
 echo ">>> Scratch directory: $scratch_dir"
 
 # Concatenate and degibbs all data together
-mrcat "${input_files[@]}" - | mrdegibbs -mode 3d - "$scratch_dir"/degibbs_$$.mif
+mrcat "${input_files[@]}" - | mrdegibbs -dimensionality 3 - "$scratch_dir"/degibbs_$$.mif
 
 # Report the matrix size of the concatenated volume so that the slice-encoding
 # direction (axis 2, i.e. the 3rd dimension) can be verified: the spatial axes
