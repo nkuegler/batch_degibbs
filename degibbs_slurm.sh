@@ -95,6 +95,30 @@ for f in "${input_files[@]}"; do
     fi
 done
 
+for f in "${input_files[@]}"; do
+    json_file="${f%.nii.gz}"
+    json_file="${json_file%.nii}.json"
+    if [[ ! -f "$json_file" ]]; then
+        echo "WARNING: No JSON sidecar found for $f; PartialFourier could not be checked. Executing degibbs anyway."
+        continue
+    fi
+
+    partial_fourier_status=$(check_partial_fourier "$json_file")
+
+    case "$partial_fourier_status" in
+        invalid)
+            echo "ERROR: PartialFourier is not 1 in $json_file; refusing to degibbs."
+            exit 1
+            ;;
+        missing)
+            echo "WARNING: PartialFourier is not present in $json_file. Executing degibbs anyway."
+            ;;
+        unreadable)
+            echo "WARNING: Could not parse JSON in $json_file; PartialFourier could not be checked. Executing degibbs anyway."
+            ;;
+    esac
+done
+
 # Create the output directory (BIDS sub/ses/anat is already part of output_dir)
 mkdir -p "$output_dir"
 

@@ -359,10 +359,35 @@ for anat_path in "${anat_dirs[@]}"; do
             continue
         fi
 
-        echo "  Found ${#matching_files[@]} matching files:"
+        echo "  Found ${#matching_files[@]} matching files"
+
+        partial_fourier_status=0
         for f in "${matching_files[@]}"; do
-            echo "    - $(basename "$f")"
+            json_file="${f%.nii.gz}"
+            json_file="${json_file%.nii}.json"
+            if [[ ! -f "$json_file" ]]; then
+                echo "  WARNING: No JSON sidecar found for $(basename "$f"); PartialFourier could not be checked. Executing degibbs anyway."
+                continue
+            fi
+
+            partial_fourier_result=$(check_partial_fourier "$json_file")
+
+            case "$partial_fourier_result" in
+                invalid)
+                    echo "  ERROR: PartialFourier is not 1 in $json_file; refusing to submit job."
+                    partial_fourier_status=1
+                    ;;
+                missing)
+                    echo "  WARNING: PartialFourier is not present in $json_file. Executing degibbs anyway."
+                    ;;
+                unreadable)
+                    echo "  WARNING: Could not parse JSON in $json_file; PartialFourier could not be checked. Executing degibbs anyway."
+                    ;;
+            esac
         done
+        if [[ "$partial_fourier_status" -ne 0 ]]; then
+            exit 1
+        fi
 
         # Check if output files already exist for this subject/session
         existing_output=$(find "$target_output_dir" -maxdepth 1 -type f -name "*desc-degibbs*" 2>/dev/null | wc -l)

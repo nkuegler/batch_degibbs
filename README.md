@@ -32,6 +32,7 @@ Degibbsing operates **per slice**: `mrdegibbs` corrects each slice independently
 
 - MRtrix3 utilities on the `PATH` (`mrcat`, `mrdegibbs`, `mrinfo`, `mrconvert`, `remove_ext`)
 - FSL utilities on the `PATH`
+- `jq` on the `PATH` (used to validate `PartialFourier` in JSON sidecars)
 - SLURM scheduler (`sbatch`)
 
 Optionally edit `config.sh` to change the location of the SLURM log directory
