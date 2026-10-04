@@ -170,3 +170,9 @@ removed by default.
 ## Output
 
 Degibbsed NIfTI files whose names equal the inputs with `_desc-degibbs` inserted before the suffix (e.g. `..._T1w_part-mag_MPM.nii` -> `..._T1w_part-mag_desc-degibbs_MPM.nii`), plus the corresponding JSON sidecars copied from the inputs (when present).
+
+## Author and License
+
+Copyright (c) 2026 Niklas Kuegler.
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for the full license text.

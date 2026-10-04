@@ -28,6 +28,9 @@
 # AUTHOR:
 # 	Luke J. Edwards (ledwards@cbs.mpg.de)
 #   Adapted for SLURM batch processing by Niklas Kuegler (kuegler@cbs.mpg.de)
+#
+# LICENSE:
+#   MIT License
 
 #
 #SBATCH -c 4                          # 4 cores

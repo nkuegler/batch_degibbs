@@ -4,6 +4,12 @@
 # For each subject/session (i.e. each sub-*/ses-*/anat directory), a single job is submitted
 # that concatenates all image files matching the given contrast list into one 4D volume,
 # degibbses it, and splits the result back into the original volumes.
+#
+# AUTHOR:
+#   Niklas Kuegler (kuegler@cbs.mpg.de)
+#
+# LICENSE:
+#   MIT License
 
 usage() {
 echo \
